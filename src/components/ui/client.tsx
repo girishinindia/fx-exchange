@@ -17,10 +17,15 @@ export function Modal({ open, onClose, title, children, footer, width = "max-w-l
     // m-auto: a native <dialog> is centred by the browser through `margin: auto`, and
     // Tailwind's preflight resets every margin to 0 — without it every modal in the product
     // sits in the top-left corner.
+    // whitespace-normal / text-left / font-normal: a dialog is rendered in the top layer but
+    // still *inherits* from wherever it sits in the tree. Opened from a table cell that is
+    // `whitespace-nowrap text-right tabular-nums`, its paragraphs refused to wrap and the box
+    // grew a horizontal scrollbar. Reset the inherited text properties here, once, and clip
+    // anything that still overflows rather than scrolling it.
     <dialog
       ref={ref}
       onClose={onClose}
-      className={cn("m-auto rounded-2xl shadow-xl w-full p-0 backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm", width)}
+      className={cn("m-auto rounded-2xl shadow-xl w-full p-0 overflow-x-hidden whitespace-normal text-left font-normal normal-case tracking-normal text-slate-800 backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm", width)}
     >
       <div className="flex items-center px-5 py-4 border-b border-sky-100">
         <h3 className="font-semibold text-slate-900">{title}</h3>
@@ -28,7 +33,7 @@ export function Modal({ open, onClose, title, children, footer, width = "max-w-l
           <Icon name="fa-xmark" />
         </button>
       </div>
-      <div className="p-5 space-y-4">{children}</div>
+      <div className="p-5 space-y-4 break-words [&_input]:min-w-0">{children}</div>
       {footer && <div className="px-5 py-4 border-t border-sky-100 flex justify-end gap-2 bg-sky-50/50">{footer}</div>}
     </dialog>
   );
