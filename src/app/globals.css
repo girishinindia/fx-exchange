@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* FX Desk theme — light blue (Tailwind "sky"), matches the design prototype */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(2, 132, 199, 0.06);
+}
+
+html,
+body {
+  background: color-mix(in oklab, var(--color-sky-50) 60%, white);
+  color: var(--color-slate-800);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sky-200);
+  border-radius: 9999px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+}

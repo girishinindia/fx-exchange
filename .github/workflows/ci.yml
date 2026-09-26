@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          # build does not connect; env is validated lazily at runtime
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  db:
+    # Runs the schema + migrations on a throw-away Postgres: RLS / tenant-leak suite, posting maths,
+    # reports, backup + verify. Also the Redis session tests through the local Upstash shim.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply schema and migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in db/migrations/*.sql; do
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - run: npm run test:db
+        env:
+          DATABASE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Redis session tests (local Upstash REST shim)
+        run: |
+          pip install redis
+          python3 scripts/local-upstash.py &
+          sleep 2
+          npx vitest run tests/redis
+        env:
+          UPSTASH_REDIS_REST_URL: http://127.0.0.1:8079
+          UPSTASH_REDIS_REST_TOKEN: local-dev-token
