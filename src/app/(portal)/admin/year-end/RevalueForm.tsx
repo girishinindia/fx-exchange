@@ -47,7 +47,7 @@ export function RevalueForm({ positions, baseCurrency, today }: { positions: Ope
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Currency</th>
               <th className="px-3 py-2 text-right font-semibold">Held</th>
-              <th className="px-3 py-2 text-right font-semibold">Owed to clients</th>
+              <th className="px-3 py-2 text-right font-semibold">Owed to clients &amp; depositors</th>
               <th className="px-3 py-2 text-right font-semibold">Carried at</th>
               <th className="px-3 py-2 text-right font-semibold">Closing rate</th>
               <th className="px-3 py-2 text-right font-semibold">Gain / loss (₹)</th>
@@ -95,7 +95,8 @@ export function RevalueForm({ positions, baseCurrency, today }: { positions: Ope
       <Note icon="fa-lightbulb">
         Euros held against euros promised to a client move together, so a matched position shows no gain however the
         rate has changed. What shows up here is the company&apos;s own exposure — currency it holds beyond what it owes,
-        or owes beyond what it holds. It goes to <b>Unrealised Exchange Gain/Loss</b> in {baseCurrency} and stays there
+        or owes beyond what it holds — and &quot;owes&quot; counts both promises: currency owed to clients and the
+        dealing currency owed to depositors. It goes to <b>Unrealised Exchange Gain/Loss</b> in {baseCurrency} and stays there
         until the money actually moves.
       </Note>
 

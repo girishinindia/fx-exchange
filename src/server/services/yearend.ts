@@ -73,9 +73,15 @@ export async function openPositions(s: Session): Promise<OpenPosition[]> {
       held as (
         select trim(currency_code) as cur, sum(balance_fx) as fx, sum(balance_inr) as inr
           from ex.v_currency_position group by 1),
+      -- both promises: currency owed to clients, and dealing currency owed to depositors.
+      -- fn_revalue_currency restates both, so the preview has to count both or it will
+      -- show a gain on dollars the desk does not actually have.
       owed as (
-        select currency_code as cur, sum(fx_due) as fx, sum(inr_value) as inr
-          from ex.v_currency_due group by 1)
+        select cur, sum(fx) as fx, sum(inr) as inr from (
+          select trim(currency_code) as cur, fx_due as fx, inr_value as inr from ex.v_currency_due
+          union all
+          select trim(currency_code) as cur, fx_due as fx, inr_value as inr from ex.v_depositor_due
+        ) o group by 1)
       select coalesce(h.cur, o.cur) as currency_code,
              coalesce(h.fx, 0)::text as held_fx, coalesce(h.inr, 0)::text as held_inr,
              coalesce(o.fx, 0)::text as owed_fx, coalesce(o.inr, 0)::text as owed_inr,

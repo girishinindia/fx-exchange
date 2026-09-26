@@ -84,7 +84,8 @@ export default async function YearEndPage() {
                             {y.locked_at ? `${fmtDate(y.locked_at)}${y.locked_by_name ? ` by ${y.locked_by_name}` : ""}` : ""}
                             {y.lock_note ? ` · ${y.lock_note}` : ""}
                           </div></>
-                      : <Badge tone="emerald">Open</Badge>}
+                      : <><Badge tone="emerald">Open</Badge>
+                          {y.lock_note && <div className="mt-1 text-xs text-slate-500">{y.lock_note}</div>}</>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {y.status === "OPEN" ? (

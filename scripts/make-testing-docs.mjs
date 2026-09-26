@@ -1544,13 +1544,13 @@ books.push({
        "Four currencies, dollars among them. **Rupees are not listed** — everything is measured in rupees, so there is no rate to restate them at."],
     ]],
     ["table", { widths: [1400, 2100, 1900, 1900, 1700],
-      head: ["Currency", "Held", "Carried at", "Owed to clients", "Worth"], rows: [
-      ["USD", "10,800.00", "₹86.00", "0.00", "₹0.00"],
+      head: ["Currency", "Held", "Carried at", "Owed to clients & depositors", "Worth"], rows: [
+      ["USD", "10,800.00", "₹86.00", "48,300.00", "₹41,56,550.00"],
       ["EUR", "20,360.00", "₹95.308448", "20,360.00", "₹19,42,480.00"],
       ["AED", "36,700.00", "₹24.20", "36,700.00", "₹8,88,140.00"],
       ["CHF", "4,450.00", "₹96.00", "4,450.00", "₹4,27,200.00"],
     ], opts: { align: [undefined, AlignmentType.RIGHT, AlignmentType.RIGHT, AlignmentType.RIGHT, AlignmentType.RIGHT] } }],
-    ["small", "This screen lists what clients are owed. The 48,300 dollars owed to depositors are restated as well — they appear on the revaluation voucher below, one line per depositor."],
+    ["small", "The owed column counts both promises: currency owed to clients, and the 48,300 dollars owed to depositors. Both are restated — the depositors appear on the revaluation voucher below, one line each."],
     ["small", "The euros are held at ₹95.308448 but owed at ₹19,42,480 — a shade more than the ₹19,40,480 they are carried at. That ₹2,000 gap is the exchange difference taken in Book 5, and step 4 below brings it back."],
 
     ["h1", "Restating the currency"],
