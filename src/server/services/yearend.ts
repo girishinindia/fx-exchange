@@ -24,6 +24,8 @@ export type FyRow = {
   id: string; fy_code: string; start_date: string; end_date: string; status: string;
   locked_at: string | null; locked_by_name: string | null; lock_note: string | null;
   vouchers: number; first_voucher: string | null; last_voucher: string | null;
+  /** Posted revaluation vouchers in the year — zero means the currency was never restated. */
+  revaluations: number;
 };
 
 export async function listFinancialYears(s: Session): Promise<FyRow[]> {
@@ -34,6 +36,7 @@ export async function listFinancialYears(s: Session): Promise<FyRow[]> {
              to_char(f.end_date, 'YYYY-MM-DD') as end_date, f.status,
              to_char(f.locked_at, 'YYYY-MM-DD') as locked_at, u.full_name as locked_by_name, f.lock_note,
              (select count(*)::int from ex.voucher v where v.fy_id = f.id) as vouchers,
+             (select count(*)::int from ex.voucher v where v.fy_id = f.id and v.voucher_type = 'REVALUATION' and v.status = 'POSTED') as revaluations,
              (select to_char(min(v.voucher_date), 'YYYY-MM-DD') from ex.voucher v where v.fy_id = f.id) as first_voucher,
              (select to_char(max(v.voucher_date), 'YYYY-MM-DD') from ex.voucher v where v.fy_id = f.id) as last_voucher
         from ex.fy_period f

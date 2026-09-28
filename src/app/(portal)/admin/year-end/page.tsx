@@ -7,7 +7,7 @@ import { Badge, Card, Field, Icon, LinkButton, Note, PageHeader } from "@/compon
 import { lockYearAction, unlockYearAction } from "@/app/actions/yearend";
 import { getCompanyInfo } from "@/lib/company";
 import { fmtDate, todayISO } from "@/lib/format";
-import { formatINR } from "@/lib/money";
+import { formatINR, formatQty } from "@/lib/money";
 import { getPermissions, requirePermission } from "@/lib/permissions";
 import { runReport } from "@/lib/report-access";
 import { listFinancialYears, openPositions } from "@/server/services/yearend";
@@ -92,11 +92,25 @@ export default async function YearEndPage() {
                       <ModalButton label="Close" icon="fa-lock" variant="secondary" title={`Close ${y.fy_code}`}>
                         <ActionForm action={lockYearAction} submit="Close the year" icon="fa-lock" submitVariant="danger" closeOnSuccess>
                           <input type="hidden" name="fyId" value={y.id} />
+                          {positions.length > 0 && y.revaluations === 0 && (
+                            <Note tone="rose" icon="fa-scale-unbalanced">
+                              <b>The currency has not been restated for {y.fy_code}.</b> Step 1 above has not been run, so{" "}
+                              {positions.map((p, i) => (
+                                <span key={p.currency_code}>
+                                  {i > 0 && (i === positions.length - 1 ? " and " : ", ")}
+                                  <b>{p.currency_code}</b> ({formatQty(p.held_fx)} held, {formatQty(p.owed_fx)} owed)
+                                </span>
+                              ))}{" "}
+                              {positions.length === 1 ? "is" : "are"} still carried at the old rates. The year&apos;s profit will not include the
+                              rate movement. Close anyway only if the CA has agreed.
+                            </Note>
+                          )}
                           <Note tone="amber" icon="fa-triangle-exclamation">
                             Nothing more can be entered or reversed in {y.fy_code} once it is closed — including corrections.
                             Do this after your CA has signed the year off. An Administrator can reopen it, and the reason is recorded.
                           </Note>
-                          <Field label="Note (optional)" name="note" maxLength={300} placeholder="Signed off by the CA on …" />
+                          <Field label="Note for the record (optional)" name="note" maxLength={300} placeholder="Signed off by the CA on …"
+                            hint="Shown under the year once it is closed — who signed it off and when." />
                         </ActionForm>
                       </ModalButton>
                     ) : (

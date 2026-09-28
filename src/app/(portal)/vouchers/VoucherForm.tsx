@@ -10,8 +10,9 @@ import { VOUCHER_TYPES, type VoucherType } from "@/lib/ledger";
 export type AccountOpt = { id: string; code: string; name: string; currency_code: string | null; is_control: boolean; party_kind: string | null };
 export type PartyOpt = { id: string; full_name: string; is_client: boolean; is_depositor: boolean };
 
-type Line = { key: number; account: string; party: string; currency: string; fx: string; rate: string; dc: "D" | "C"; remarks: string };
+type Line = { key: number; account: string; party: string; currency: string; fx: string; rate: string; dc: "D" | "C"; remarks: string; auto?: boolean };
 const blank = (key: number): Line => ({ key, account: "", party: "", currency: "", fx: "", rate: "", dc: "D", remarks: "" });
+const isBlank = (l: Line) => !l.account && !l.fx && !l.party;
 const n = (v: string) => (v && !Number.isNaN(Number(v)) ? Number(v) : 0);
 
 /**
@@ -30,7 +31,28 @@ export function VoucherForm({
   const [type, setType] = useState<VoucherType>(fixedType ?? "JOURNAL");
 
   const accountOf = (id: string) => accounts.find((a) => a.id === id);
-  const set = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const cashBook = accounts.find((a) => a.code === `CASH-${baseCurrency}`);
+
+  // Expense: the money leaves the company's own rupee account. Once the
+  // expense line has an amount, the second line is filled as Cash/Bank — INR,
+  // Credit, same amount, and kept in step until it is edited by hand.
+  // (A tester left this line empty, saw only "Off by 1,000.00", and could
+  // not see why Post was disabled.)
+  const autoFill = (ls: Line[], t: VoucherType): Line[] => {
+    if (t !== "EXPENSE" || !cashBook) return ls;
+    const [first, second] = ls;
+    if (!first || !second) return ls;
+    const firstAcc = accounts.find((a) => a.id === first.account);
+    const firstIsExpense = !!firstAcc && !firstAcc.is_control && firstAcc.code !== cashBook.code && first.dc === "D";
+    if (!firstIsExpense || !(second.auto || isBlank(second)) || !n(first.fx)) return ls;
+    return ls.map((l, i) => (i === 1 ? { ...l, account: cashBook.id, party: "", currency: "", fx: first.fx, rate: "", dc: "C", auto: true } : l));
+  };
+  // A hand edit on a line ends any auto-filling of it.
+  const set = (key: number, patch: Partial<Line>) => setLines((ls) => autoFill(ls.map((l) => (l.key === key ? { ...l, ...patch, auto: false } : l)), type));
+  const changeType = (t: VoucherType) => {
+    setType(t);
+    setLines((ls) => autoFill(ls, t));
+  };
   const inr = (l: Line) => {
     const acc = accountOf(l.account);
     const cur = l.currency || acc?.currency_code?.trim() || baseCurrency;
@@ -41,6 +63,15 @@ export function VoucherForm({
   const credit = lines.filter((l) => l.dc === "C").reduce((a, l) => a + inr(l), 0);
   const diff = Math.round((debit - credit) * 100) / 100;
   const money = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Why Post is greyed out, in words — the footer's "Off by" alone was not enough.
+  const whyNot =
+    debit === 0 && credit === 0
+      ? "Type at least one line with an amount."
+      : diff > 0
+        ? `Debits are ${money(diff)} more than credits — add a Credit line of ${money(diff)}${type === "EXPENSE" ? ` on the account the money went out of (${cashBook?.name ?? `Cash/Bank — ${baseCurrency}`})` : ""}.`
+        : diff < 0
+          ? `Credits are ${money(-diff)} more than debits — add a Debit line of ${money(-diff)}.`
+          : null;
   const cell = "w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-200";
 
   return (
@@ -56,7 +87,7 @@ export function VoucherForm({
         {fixedType ? (
           <input type="hidden" name="type" value={fixedType} />
         ) : (
-          <SelectField label="Voucher type" name="type" value={type} onChange={(e) => setType(e.target.value as VoucherType)}
+          <SelectField label="Voucher type" name="type" value={type} onChange={(e) => changeType(e.target.value as VoucherType)}
             options={(["JOURNAL", "EXPENSE", "DEPOSIT", "DEAL", "PAYOUT", "RECEIPT", "SETTLEMENT"] as VoucherType[]).map((t) => ({ value: t, label: VOUCHER_TYPES[t] }))} />
         )}
         <Field label="Date" name="date" type="date" required defaultValue={today} />
@@ -93,6 +124,7 @@ export function VoucherForm({
                       <option value="">Choose account…</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.currency_code ? ` (${a.currency_code.trim()})` : ""}</option>)}
                     </select>
+                    {l.auto && <div className="mt-1 text-[11px] text-sky-700">Filled for you — change it if the money came from elsewhere.</div>}
                   </td>
                   <td className="px-2 py-1.5 min-w-[160px]">
                     <select name={`line-${i}-party`} value={l.party} onChange={(e) => set(l.key, { party: e.target.value })} className={cell} disabled={!needsParty}>
@@ -148,7 +180,11 @@ export function VoucherForm({
           className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
           <Icon name={pending ? "fa-spinner fa-spin" : "fa-check"} />{title ?? "Post voucher"}
         </button>
-        <span className="text-xs text-slate-500">A posted voucher can never be edited — corrections are reversals.</span>
+        {whyNot ? (
+          <span className="text-xs font-medium text-amber-700" role="status"><Icon name="fa-circle-info" className="mr-1" />{whyNot}</span>
+        ) : (
+          <span className="text-xs text-slate-500">A posted voucher can never be edited — corrections are reversals.</span>
+        )}
       </div>
     </form>
   );
