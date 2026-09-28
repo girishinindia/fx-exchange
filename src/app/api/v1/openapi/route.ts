@@ -206,6 +206,22 @@ export function GET() {
       "/reports/trial-balance": { get: { summary: "Trial balance", responses: ok({ type: "object" }) } },
       "/reports/party-balances": { get: { summary: "What each party owes or is owed", responses: ok({ type: "object" }) } },
       "/reports/currency-position": { get: { summary: "Holdings by currency plus the liquidity summary", responses: ok({ type: "object" }) } },
+      "/users": { get: { summary: "Everybody who can sign in — read-only; people are added and blocked by Genius ITens (user.view)", responses: ok({ type: "object" }) } },
+      "/roles": { get: { summary: "The roles at this desk and every permission by module (user.view)", responses: ok({ type: "object" }) } },
+      "/currencies": {
+        get: { summary: "The company's currencies and the ISO codes still available (currency.manage)", responses: ok({ type: "object" }) },
+        post: { summary: "Enable a currency; a cash/bank account is created for it (currency.manage)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["code"], properties: { code: { type: "string", example: "GBP" }, order: { type: "integer", default: 10 } } } } } }, responses: ok({ type: "object", properties: { code: { type: "string" } } }) },
+      },
+      "/currencies/{id}": { patch: { summary: "Display order and whether the currency can be dealt (currency.manage)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }], requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["order", "active"], properties: { order: { type: "integer" }, active: { type: "boolean" } } } } } }, responses: ok({ type: "object" }) } },
+      "/company": {
+        get: { summary: "Company profile and the rules the books run on (company.manage)", responses: ok({ type: "object" }) },
+        patch: { summary: "The profile printed on documents — code, currencies and the financial year are fixed at setup (company.manage)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["legalName"], properties: { legalName: { type: "string" }, displayName: { type: "string" }, gstin: { type: "string" }, pan: { type: "string" }, licenseNo: { type: "string" }, phone: { type: "string" }, email: { type: "string" }, address: { type: "string" }, city: { type: "string" }, state: { type: "string" }, pincode: { type: "string" } } } } } }, responses: ok({ type: "object" }) },
+      },
+      "/audit": { get: { summary: "The audit trail, newest first (audit.view)", parameters: listParams([{ name: "table", in: "query", schema: { type: "string" } }, { name: "op", in: "query", schema: { type: "string", enum: ["INSERT", "UPDATE", "DELETE"] } }, { name: "user", in: "query", schema: { type: "integer" } }, { name: "record", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }]), responses: ok({ type: "object" }) } },
+      "/backup": {
+        get: { summary: "Who downloaded a backup, and when (backup.manage)", responses: ok({ type: "object" }) },
+        post: { summary: "The company backup as a ZIP stream (backup.manage; rate-limited)", parameters: [{ name: "includeAudit", in: "query", schema: { type: "string", enum: ["1"] } }], responses: { "200": { description: "application/zip" } } },
+      },
     },
   };
   return NextResponse.json(spec, { headers: { "cache-control": "public, max-age=300" } });

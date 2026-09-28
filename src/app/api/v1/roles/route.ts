@@ -1,0 +1,7 @@
+import { json, withApi } from "@/lib/api";
+import { listRoles } from "@/server/services/admin";
+
+export const dynamic = "force-dynamic";
+
+/** GET /api/v1/roles — the roles at this desk and every permission, module by module (needs user.view). */
+export const GET = withApi(async (_req, s) => json(await listRoles(s)));

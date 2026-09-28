@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
 import { Badge, Card, Icon, Kpi, Note, PageHeader, Table } from "@/components/ui";
-import { withTenant } from "@/lib/db";
 import { fmtDateTime } from "@/lib/format";
 import { requirePermission } from "@/lib/permissions";
-import { tenantOf } from "@/lib/session";
+import { listUsers, type UserRow } from "@/server/services/admin";
 
 export const metadata: Metadata = { title: "People" };
 
-type Row = {
-  id: string; full_name: string; email: string; phone: string | null;
-  user_type: "ADMIN" | "USER"; status: "ACTIVE" | "INACTIVE" | "LOCKED";
-  role_name: string | null; last_login_at: Date | null; locked: boolean;
-  must_change_password: boolean; profile_done: boolean;
-};
+type Row = UserRow;
 
 /**
  * Who works at this desk — and that is all. Accounts are opened, blocked and reset by Genius
@@ -24,15 +18,7 @@ export default async function PeoplePage() {
   const s = await requirePermission("user.view");
   if (s.preview) return <Note tone="amber">People need a real login (not available in preview).</Note>;
 
-  const rows = await withTenant(await tenantOf(s), (tx) => tx<Row[]>`
-    select u.id, u.full_name, u.email, u.phone, u.user_type, u.status,
-           r.name as role_name, u.last_login_at,
-           coalesce(u.locked_until > now(), false) as locked, u.must_change_password,
-           u.profile_completed_at is not null as profile_done
-      from ex.app_user u
-      left join lateral (select ur.role_id from ex.user_role ur where ur.user_id = u.id order by ur.id limit 1) x on true
-      left join ex.role r on r.id = x.role_id
-     order by (u.user_type = 'ADMIN') desc, u.full_name`);
+  const rows = await listUsers(s);
 
   const active = rows.filter((r) => r.status === "ACTIVE").length;
 

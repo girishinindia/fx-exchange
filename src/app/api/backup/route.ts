@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
-import { backupTables, countRows, SCHEMA_VERSION, writeBackup } from "@/lib/backup";
-import { withTenant } from "@/lib/db";
 import { hasPermission } from "@/lib/permissions";
 import { checkRate } from "@/lib/ratelimit";
-import { getSession, tenantOf } from "@/lib/session";
+import { getSession } from "@/lib/session";
+import { backupStream } from "@/server/services/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -31,39 +30,7 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData().catch(() => null);
   const includeAudit = form?.get("include_audit") === "1";
-  const tenant = await tenantOf(s);
-
-  const [company] = await withTenant(tenant, (tx) =>
-    tx<{ id: string; code: string; name: string; today: string }[]>`
-      select id, code, coalesce(display_name, legal_name) as name,
-             to_char(now() at time zone coalesce(timezone, 'Asia/Kolkata'), 'YYYY-MM-DD_HH24MI') as today
-        from ex.company`);
-  const fileName = `fx-backup_${company.code}_${company.today}${includeAudit ? "_with-audit" : ""}.zip`;
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      withTenant(
-        tenant,
-        async (tx) => {
-          const tables = backupTables(includeAudit);
-          const counts = await countRows(tx, tables);
-          // recorded in its own (write) transaction; the data below comes from the read-only snapshot
-          await withTenant(tenant, (w) => w`select ex.fn_record_backup(${w.json({
-            file_name: fileName, include_audit: includeAudit, table_count: tables.length,
-            row_count: Object.values(counts).reduce((a, b) => a + b, 0), schema_version: SCHEMA_VERSION,
-          })})`);
-          await writeBackup(tx, { company: { id: Number(company.id), code: company.code, name: company.name }, by: { id: s.userId, name: s.userName }, includeAudit, counts }, (c) => controller.enqueue(c));
-        },
-        { snapshot: true },
-      ).then(
-        () => controller.close(),
-        (e) => {
-          console.error("backup failed", e);
-          controller.error(e);
-        },
-      );
-    },
-  });
+  const { fileName, stream } = await backupStream(s, includeAudit);
 
   return new Response(stream, {
     headers: {
