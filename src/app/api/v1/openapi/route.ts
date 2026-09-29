@@ -53,7 +53,10 @@ export function GET() {
           properties: {
             depositorId: { type: "integer" },
             date: { type: "string", format: "date" },
-            fxAmount: { type: "string", description: "amount in the primary currency", example: "10000.0000" },
+            currency: { type: "string", description: "what the depositor handed over; the dealing currency when left out", example: "USD" },
+            fxAmount: { type: "string", description: "amount of that currency", example: "10000.0000" },
+            toPrimaryRate: { type: "string", description: "one unit of it in dealing currency — only when the two differ and it is being changed" },
+            keep: { type: "boolean", description: "keep the currency as itself instead of changing it into the dealing currency; rate is then ₹ per 1 of it (0023)" },
             rate: { type: "string", description: "manual rate to the book currency, 6 dp", example: "86.000000" },
             referenceNo: { type: "string" },
             narration: { type: "string" },
@@ -76,14 +79,15 @@ export function GET() {
         },
         DealInput: {
           type: "object",
-          required: ["clientId", "fxCurrency", "fxAmount", "fxToInrRate", "srcAmount"],
+          required: ["clientId", "fxCurrency", "fxAmount", "fxToInrRate"],
           properties: {
             clientId: { type: "integer" },
             date: { type: "string", format: "date" },
             fxCurrency: { type: "string", description: "the currency the client asked for", example: "EUR" },
             fxAmount: { type: "string", example: "9200.0000" },
             fxToInrRate: { type: "string", description: "rate the client is billed at, 6 dp", example: "95.000000" },
-            srcAmount: { type: "string", description: "primary currency this deal spends", example: "10000.0000" },
+            srcCurrency: { type: "string", description: "the currency the deal is funded from: the one sold when the desk holds it as itself (or it is the dealing currency), else the dealing currency. Left out, the server picks by that rule and returns it (0023)" },
+            srcAmount: { type: "string", description: "funding currency this deal spends — required only when it differs from the currency sold", example: "10000.0000" },
             funding: {
               type: "array",
               description: "which deposits pay for it. Leave it out and the oldest deposits with currency left are used.",
@@ -157,6 +161,11 @@ export function GET() {
       },
       "/sales": { post: { summary: "The counter's Sell: a deal and, when settled on the spot, the hand-over and receipt with it — one transaction (deal.manage; follow-ups need voucher.create)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["deal"], properties: { deal: { $ref: "#/components/schemas/DealInput" }, handOver: { type: "object", nullable: true, properties: { accountCode: { type: "string" } } }, collect: { type: "object", nullable: true, properties: { inrAmount: { type: "string" }, accountCode: { type: "string" }, allowAdvance: { type: "boolean" } } } } } } } }, responses: ok({ type: "object", properties: { deal: { type: "object" }, payout: { type: "object", nullable: true }, receipt: { type: "object", nullable: true } } }) } },
       "/purchases": { post: { summary: "The counter's Buy: a deposit and, when the depositor is paid on the spot, the settlement with it — one transaction (voucher.create)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["deposit"], properties: { deposit: { $ref: "#/components/schemas/DepositInput" }, payNow: { type: "object", nullable: true, required: ["rate"], properties: { rate: { type: "string" }, accountCode: { type: "string" } } } } } } } }, responses: ok({ type: "object", properties: { deposit: { type: "object" }, settlement: { type: "object", nullable: true } } }) } },
+      "/day": { get: { summary: "The day sheet — the whiteboard read off the ledger: a column per Cash/Bank account, opening, a row per voucher with its cells and a written remark, in / out / closing, the day's result (report.view)", parameters: [{ name: "date", in: "query", schema: { type: "string", format: "date" } }], responses: ok({ type: "object", properties: { date: { type: "string" }, columns: { type: "array" }, opening: { type: "object" }, rows: { type: "array" }, inflow: { type: "object" }, outflow: { type: "object" }, closing: { type: "object" }, day: { type: "object" } } }) } },
+      "/expenses": { post: { summary: "An expense paid from the drawer or the bank — one EXPENSE voucher (voucher.create)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["inrAmount"], properties: { accountCode: { type: "string", description: "the expense head" }, accountId: { type: "integer" }, inrAmount: { type: "string" }, paidFrom: { type: "string", description: "CASH-INR (default) or BANK-INR" }, date: { type: "string", format: "date" }, partyId: { type: "integer" }, narration: { type: "string" }, referenceNo: { type: "string" }, clientRef: { type: "string" } } } } } }, responses: ok({ type: "object", properties: { id: { type: "string" }, voucherNo: { type: "string" }, duplicate: { type: "boolean" } } }) } },
+      "/transfers": { post: { summary: "Rupees moved between two rupee accounts, drawer ⇄ bank — one JOURNAL voucher (voucher.create)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["from", "to", "inrAmount"], properties: { from: { type: "string", example: "CASH-INR" }, to: { type: "string", example: "BANK-INR" }, inrAmount: { type: "string" }, date: { type: "string", format: "date" }, narration: { type: "string" }, referenceNo: { type: "string" }, clientRef: { type: "string" } } } } } }, responses: ok({ type: "object", properties: { id: { type: "string" }, voucherNo: { type: "string" }, duplicate: { type: "boolean" } } }) } },
+      "/day-close": { post: { summary: "The day valued at the closing rates typed just now — stock per currency, the rupee drawers, the day's result. Nothing is posted and no rate is kept (report.view)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["rates"], properties: { date: { type: "string", format: "date" }, rates: { type: "array", items: { type: "object", properties: { currency: { type: "string" }, rate: { type: "string" } } } } } } } } }, responses: ok({ type: "object", properties: { stock: { type: "array" }, rupees: { type: "array" }, totals: { type: "object" }, day: { type: "object" } } }) } },
+      "/parties/walk-in": { get: { summary: "The company's built-in Walk-in party — a client and depositor with no account, made on first use (deal.manage or voucher.create)", responses: ok({ type: "object", properties: { id: { type: "string" }, partyCode: { type: "string" }, fullName: { type: "string" } } }) } },
       "/todo": { get: { summary: "What is still open at the counter — HAND_OVER, COLLECT and PAY lines, one per action (report.view)", responses: ok({ type: "object", properties: { items: { type: "array" }, today: { type: "object" } } }) } },
       "/parties/{id}": {
         get: { summary: "One party, optionally with its ledger; with report.view also `insight` — rupees owed, currency still to deliver per currency, what a depositor is owed in currency, their money round the loop (cycle) and what they have earned the desk (earned)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }, { name: "ledger", in: "query", schema: { type: "string", enum: ["1"] } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok({ type: "object", properties: { party: { type: "object" }, ledger: { type: "object", nullable: true }, insight: { type: "object", nullable: true, properties: { receivableInr: { type: "string" }, payableInr: { type: "string" }, currencyDue: { type: "array" }, owedFx: { type: "array" }, cycle: { type: "object", nullable: true }, earned: { type: "object", nullable: true } } } } }) },

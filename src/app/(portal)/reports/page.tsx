@@ -39,6 +39,28 @@ export default async function ReportsPage() {
           </div>
         </Link>
       )}
+      {visible.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link href="/reports/day-close" className="group block rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-5 shadow-card transition hover:border-amber-300 hover:shadow-md">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-600 text-white"><Icon name="fa-moon" /></div>
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900 group-hover:text-amber-700">Day close</div>
+                <p className="mt-0.5 text-sm text-slate-600">Type today&rsquo;s closing rates, see the stock valued, the rupee drawers and the day&rsquo;s result. Nothing is posted; no rate is kept.</p>
+              </div>
+            </div>
+          </Link>
+          <Link href="/entry" className="group block rounded-xl border border-sky-100 bg-white p-5 shadow-card transition hover:border-sky-300 hover:shadow-md">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-600"><Icon name="fa-table-cells" /></div>
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900 group-hover:text-sky-700">The board — any day</div>
+                <p className="mt-0.5 text-sm text-slate-500">The day sheet: every drawer as a column, every line as a row, opening on top and closing underneath. Pick a date on it to read a past day.</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
       {GROUPS.map((g) => {
         const list = visible.filter((e) => e.d.group === g);
         if (!list.length) return null;

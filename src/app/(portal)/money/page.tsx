@@ -32,7 +32,7 @@ export default async function MoneyPage() {
           <ul className="divide-y divide-sky-50">
             {cash.map((c) => (
               <li key={c.code} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="font-semibold">{c.currency_code.trim() === base ? "Rupees" : c.currency_code.trim()} <span className="font-normal text-slate-400">{c.name}</span></span>
+                <span className="font-semibold">{c.currency_code.trim() === base ? `₹ ${c.name.replace(/ — .*$/, "")}` : c.currency_code.trim()} <span className="font-normal text-slate-400">{c.currency_code.trim() === base ? "" : c.name}</span></span>
                 <span className="text-right tabular-nums">
                   <b>{c.currency_code.trim() === base ? formatINR(c.balance_inr, { decimals: 0 }) : `${formatQty(c.balance_fx)} ${c.currency_code.trim()}`}</b>
                   {c.currency_code.trim() !== base && <div className="text-xs text-slate-500">{formatINR(c.balance_inr, { decimals: 0 })} · @ {Number(c.balance_fx) ? formatRate(Number(c.balance_inr) / Number(c.balance_fx)) : "—"}</div>}

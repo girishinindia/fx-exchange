@@ -34,7 +34,7 @@ export function VoucherForm({
   const cashBook = accounts.find((a) => a.code === `CASH-${baseCurrency}`);
 
   // Expense: the money leaves the company's own rupee account. Once the
-  // expense line has an amount, the second line is filled as Cash/Bank — INR,
+  // expense line has an amount, the second line is filled as Cash — INR,
   // Credit, same amount, and kept in step until it is edited by hand.
   // (A tester left this line empty, saw only "Off by 1,000.00", and could
   // not see why Post was disabled.)

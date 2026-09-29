@@ -1,26 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Card, Icon, LinkButton, Note } from "@/components/ui";
+import { Card, Icon, Note } from "@/components/ui";
 import { getCompanyInfo } from "@/lib/company";
 import { withTenant } from "@/lib/db";
 import { fmtDate, todayISO } from "@/lib/format";
-import { formatINR, formatQty } from "@/lib/money";
 import { getPermissions } from "@/lib/permissions";
 import { requireSession, tenantOf } from "@/lib/session";
-import { todo } from "@/server/services/counter";
+import { daySheet, walkIn } from "@/server/services/day";
 import { availableDeposits } from "@/server/services/deals";
-import { listVouchers } from "@/server/services/ledger";
-import { EntryForm, type CashOpt, type PartyOpt } from "./EntryForm";
-import { TodoList } from "../home/TodoList";
+import { DayGrid } from "./DayGrid";
+import { EntryForm, type CashOpt, type ExpenseOpt, type LineKind, type PartyOpt } from "./EntryForm";
 
 export const metadata: Metadata = { title: "Entry" };
 
-const TYPE_WORD: Record<string, string> = { DEPOSIT: "Bought", DEAL: "Sold", PAYOUT: "Handed over", RECEIPT: "Received ₹", SETTLEMENT: "Paid", REVERSAL: "Reversed", EXPENSE: "Expense", JOURNAL: "Journal", OPENING: "Opening", REVALUATION: "Revalued" };
-
 /**
- * The counter. Left: the one form — Buy | Sell, five fields, "settled now?" — that clears
- * and refocuses after every save. Right: what was posted today and what is still open,
- * so a desk person never needs another page.
+ * The day sheet — the client's whiteboard, typed. The entry line on top (Buy | Sell | Expense |
+ * Cash⇄Bank), the grid of the day underneath: one column per drawer, one row per line, closing
+ * at the bottom. Any past day opens the same way with ?date=.
  */
 export default async function EntryPage({ searchParams }: PageProps<"/entry">) {
   const s = await requireSession();
@@ -28,76 +24,66 @@ export default async function EntryPage({ searchParams }: PageProps<"/entry">) {
   const perms = await getPermissions(s);
   const company = await getCompanyInfo(s);
   const sp = await searchParams;
-  const mode = sp.mode === "buy" ? "buy" : "sell";
+  const mode: LineKind = sp.mode === "buy" ? "buy" : sp.mode === "expense" ? "expense" : sp.mode === "transfer" ? "transfer" : "sell";
   const today = todayISO();
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : today;
+  const canEnter = perms.has("deal.manage") || perms.has("voucher.create");
 
-  const [parties, currencies, cash] = await withTenant(await tenantOf(s), async (tx) => {
+  // the walk-in party exists from the first time somebody who can post opens this page
+  if (canEnter) await walkIn(s).catch(() => null);
+
+  const [parties, currencies, cash, expenseHeads] = await withTenant(await tenantOf(s), async (tx) => {
     const parties = await tx<PartyOpt[]>`
-      select p.id::text as id, p.full_name, p.party_code, p.phone, p.is_client, p.is_depositor,
+      select p.id::text as id, p.full_name, p.party_code, p.phone, p.is_client, p.is_depositor, (p.party_code = 'WALK-IN') as walk_in,
              coalesce((select sum(b.balance_inr) from ex.v_party_balance b where b.party_id = p.id and b.account_group = 'RECEIVABLE'), 0)::text as receivable_inr,
              coalesce((select sum(d.fx_due) from ex.v_depositor_due d where d.party_id = p.id), 0)::text as owed_fx,
              coalesce((select sum(d.inr_value) from ex.v_depositor_due d where d.party_id = p.id), 0)::text as owed_inr
-        from ex.party p where p.is_active order by p.full_name`;
+        from ex.party p where p.is_active order by (p.party_code = 'WALK-IN') desc, p.full_name`;
     const currencies = await tx<{ code: string }[]>`
-      select trim(currency_code) as code from ex.company_currency where is_active order by display_order, currency_code`;
+      select trim(currency_code) as code from ex.company_currency where is_active order by (trim(currency_code) = ${company.primaryCurrency}) desc, display_order, currency_code`;
     const cash = await tx<CashOpt[]>`
       select a.code, a.name, trim(a.currency_code) as currency_code from ex.account a
        where a.is_active and a.account_group = 'CASH_BANK' order by a.sort_order, a.code`;
-    return [parties, currencies.map((c) => c.code), cash] as const;
+    const expenseHeads = await tx<ExpenseOpt[]>`
+      select a.code, a.name from ex.account a
+       where a.is_active and a.account_type = 'EXPENSE' and a.code not in ('FX-LOSS', 'UNREAL-FX') order by a.sort_order, a.name`;
+    return [parties, currencies.map((c) => c.code).filter((c) => c !== company.baseCurrency), cash, expenseHeads] as const;
   });
   const deposits = perms.has("voucher.view") ? await availableDeposits(s) : [];
-  const [recent, open] = await Promise.all([
-    perms.has("voucher.view") ? listVouchers(s, { from: today, to: today, limit: 12 }) : Promise.resolve({ rows: [], total: 0 }),
-    perms.has("report.view") ? todo(s) : Promise.resolve(null),
-  ]);
-
-  const sellCurrencies = currencies.filter((c) => c !== company.baseCurrency && c !== company.primaryCurrency);
-  const buyCurrencies = [company.primaryCurrency, ...currencies.filter((c) => c !== company.baseCurrency && c !== company.primaryCurrency)];
+  const sheet = perms.has("report.view") ? await daySheet(s, date) : null;
+  const isToday = date === today;
+  const shift = (n: number) => { const d = new Date(date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
-      <Card>
-        <EntryForm mode={mode} parties={parties} currencies={sellCurrencies} buyCurrencies={buyCurrencies}
-          deposits={deposits.map((d) => ({ deposit_id: String(d.deposit_id), voucher_no: d.voucher_no, depositor_name: d.depositor_name, manual_rate: d.manual_rate, fx_unallocated: d.fx_unallocated }))}
-          cash={cash} base={company.baseCurrency} primary={company.primaryCurrency} today={today}
-          canSell={perms.has("deal.manage")} canCreate={perms.has("voucher.create")} />
-      </Card>
-
-      <div className="space-y-4">
-        <Card title={`Today · ${fmtDate(today)}`} icon="fa-clock" padded={false}
-              actions={<Badge tone="slate">{recent.total} {recent.total === 1 ? "entry" : "entries"}</Badge>}>
-          {recent.rows.length === 0 ? (
-            <p className="px-4 py-5 text-sm text-slate-500">Nothing posted yet today. The first entry appears here the moment it is saved.</p>
-          ) : (
-            <ul className="divide-y divide-sky-50">
-              {recent.rows.map((v) => (
-                <li key={v.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <Link href={`/vouchers/${v.id}`} className="font-semibold text-slate-800 hover:text-sky-700">
-                      {TYPE_WORD[v.voucher_type] ?? v.voucher_type}{v.party_name ? ` · ${v.party_name}` : ""}
-                    </Link>
-                    <div className="truncate text-xs text-slate-500">{v.voucher_no}{v.reference_no ? ` · ${v.reference_no}` : ""}{v.status === "REVERSED" ? " · reversed" : ""}</div>
-                  </div>
-                  <div className="tabular-nums text-slate-700">{formatINR(v.total_inr, { decimals: 0 })}</div>
-                </li>
-              ))}
-            </ul>
-          )}
+    <div className="space-y-4">
+      {canEnter && isToday ? (
+        <Card>
+          <EntryForm mode={mode} parties={parties} currencies={currencies} deposits={deposits} cash={cash} expenseHeads={expenseHeads}
+            base={company.baseCurrency} primary={company.primaryCurrency} today={today}
+            canSell={perms.has("deal.manage")} canCreate={perms.has("voucher.create")} />
         </Card>
+      ) : !isToday ? (
+        <Note tone="sky" icon="fa-calendar-day">You are looking at <b>{fmtDate(date)}</b>. New lines are added on today&rsquo;s sheet — <Link href="/entry" className="font-semibold underline">back to today</Link>. A line dated in the past can still be posted from the full forms under More.</Note>
+      ) : (
+        <Note tone="amber">Your account can read the day sheet but not add to it.</Note>
+      )}
 
-        {open && (
-          <Card title="Still open" icon="fa-list-check" padded={false}
-                actions={<LinkButton href="/home" variant="ghost">All</LinkButton>}>
-            <TodoList items={open.items.slice(0, 8)} compact />
-            {open.items.length === 0 && <p className="px-4 py-5 text-sm text-slate-500"><Icon name="fa-circle-check" className="mr-1 text-emerald-600" />Nothing waiting — every client has their currency and has paid, every depositor is settled.</p>}
-          </Card>
-        )}
-
-        <p className="px-1 text-xs text-slate-500">
-          Undo? Open the entry and press <b>Reverse</b>, with a reason — as always. A sale settled on the spot is three vouchers (sale, hand-over, receipt), reversed newest first.
-          {deposits.length > 0 && <> Unspent {company.primaryCurrency}: <b>{formatQty(deposits.reduce((a, d) => a + Number(d.fx_unallocated), 0))}</b>.</>}
-        </p>
-      </div>
+      {sheet ? (
+        <Card padded={false} title={`The board · ${fmtDate(date)}`} icon="fa-table-cells"
+              actions={
+                <span className="flex items-center gap-2 text-xs">
+                  <Link href={`/entry?date=${shift(-1)}`} className="rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50" title="the day before"><Icon name="fa-chevron-left" /></Link>
+                  <input type="date" defaultValue={date} max={today} form="daynav" name="date" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" />
+                  <form id="daynav" action="/entry" method="get"><button type="submit" className="rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50">Go</button></form>
+                  {!isToday && <Link href={`/entry?date=${shift(1)}`} className="rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50" title="the day after"><Icon name="fa-chevron-right" /></Link>}
+                  <span className="text-slate-500">{sheet.rows.length} {sheet.rows.length === 1 ? "line" : "lines"}</span>
+                </span>
+              }>
+          <DayGrid d={sheet} canRevalue={perms.has("fy.lock")} />
+        </Card>
+      ) : (
+        <Note tone="amber">The board needs the report permission.</Note>
+      )}
     </div>
   );
 }

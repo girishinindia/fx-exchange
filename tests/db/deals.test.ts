@@ -150,6 +150,50 @@ describe.skipIf(!ADMIN)("deals", () => {
     expect((r.tb as { dr: string; cr: string }).dr).toBe((r.tb as { dr: string; cr: string }).cr);
   });
 
+  it("sells the dealing currency itself, and a kept currency from its own stock (0023)", async () => {
+    const r: Record<string, unknown> = {};
+    await rollback(sql, async (tx) => {
+      const { d1, c1 } = await setup(tx, "DEALS");
+      await tx`insert into ex.company_currency (currency_code) values ('EUR') on conflict do nothing`;
+      await call(tx, "fn_post_deposit", { depositor_id: d1, date: "2026-04-01", fx_amount: "1000", rate: "86" });
+      const kept = await call(tx, "fn_post_deposit", { depositor_id: d1, date: "2026-04-01", currency: "EUR", fx_amount: "50", rate: "90.5", keep: true });
+      r.kept = kept.kept;
+      r.keptCurrency = kept.currency;
+      [r.owedEur] = await tx`select fx_due::text as fx, inr_value::text as inr from ex.v_depositor_due where party_id = ${d1} and currency_code = 'EUR'`;
+      // no euros were changed into dollars: exactly two lines
+      [r.lines] = await tx`select count(*)::int as n from ex.voucher_line where voucher_id = ${kept.voucher_id as string}`;
+
+      // a sale of dollars, from the dollar deposit, oldest first — no src_amount needed
+      const usd = await call(tx, "fn_post_deal", { client_id: c1, date: "2026-04-02", fx_currency: "USD", fx_amount: "100", fx_to_inr_rate: "84.5" });
+      r.usd = { src: usd.src_currency, srcAmount: usd.src_amount, cost: usd.src_cost_inr, margin: usd.margin_inr };
+
+      // a sale of euros comes from the kept euros by default, at what they cost
+      const eur = await call(tx, "fn_post_deal", { client_id: c1, date: "2026-04-02", fx_currency: "EUR", fx_amount: "30", fx_to_inr_rate: "92" });
+      r.eur = { src: eur.src_currency, cost: eur.src_cost_inr, margin: eur.margin_inr };
+      // …and the euro stock is worth the same per unit before and after the deal
+      [r.eurStock] = await tx`
+        select sum(case when l.dc = 'D' then l.fx_amount else -l.fx_amount end)::text as fx,
+               sum(case when l.dc = 'D' then l.inr_amount else -l.inr_amount end)::text as inr
+          from ex.voucher_line l join ex.account a on a.id = l.account_id where a.code = 'CASH-EUR'`;
+      // the client is owed 30 EUR, carried at cost
+      [r.due] = await tx`select fx_due::text as fx, inr_value::text as inr from ex.v_currency_due where party_id = ${c1} and currency_code = 'EUR'`;
+      // but the desk may still buy euros with dollars when it says so
+      const conv = await call(tx, "fn_post_deal", { client_id: c1, date: "2026-04-02", fx_currency: "EUR", fx_amount: "10", fx_to_inr_rate: "92", src_currency: "USD", src_amount: "11" });
+      r.conv = conv.src_currency;
+      [r.tb] = await tx`select coalesce(sum(debit_inr),0)::text as dr, coalesce(sum(credit_inr),0)::text as cr from ex.v_trial_balance`;
+    });
+    expect(r.kept).toBe(true);
+    expect(r.keptCurrency).toBe("EUR");
+    expect(r.owedEur).toEqual({ fx: "50.0000", inr: "4525.00" });
+    expect(r.lines).toEqual({ n: 2 });
+    expect(r.usd).toEqual({ src: "USD", srcAmount: "100.0000", cost: "8600.00", margin: "-150.00" });
+    expect(r.eur).toEqual({ src: "EUR", cost: "2715.00", margin: "45.00" });
+    expect(r.eurStock).toEqual({ fx: "50.0000", inr: "4525.00" });
+    expect(r.due).toEqual({ fx: "30.0000", inr: "2715.00" });
+    expect(r.conv).toBe("USD");
+    expect((r.tb as { dr: string; cr: string }).dr).toBe((r.tb as { dr: string; cr: string }).cr);
+  });
+
   it("refuses a deal the deposits cannot pay for, and books the same one only once", async () => {
     const errs: string[] = [];
     const r: Record<string, unknown> = {};
@@ -168,7 +212,7 @@ describe.skipIf(!ADMIN)("deals", () => {
       await fail({ ...base, src_amount: "5000" });                                            // more than is left
       await fail({ ...base, src_amount: "900", funding: [{ deposit_id: dep, fx_allocated: "5000" }] }); // slice too big
       await fail({ ...base, src_amount: "900", funding: [{ deposit_id: dep, fx_allocated: "500" }] });  // does not add up
-      await fail({ ...base, fx_currency: "USD", src_amount: "100" });                         // not a conversion
+      await fail({ ...base, fx_currency: "INR", src_amount: "100" });                         // the book currency
       await fail({ ...base, fx_currency: "JPY", src_amount: "100" });                         // currency not dealt in
       await fail({ ...base, client_id: d1, src_amount: "100" });                              // not a client
 
@@ -182,7 +226,7 @@ describe.skipIf(!ADMIN)("deals", () => {
     expect(errs[0]).toContain("but 1000.0000 USD was allocated");
     expect(errs[1]).toContain("has only 1000.0000 USD left");
     expect(errs[2]).toContain("spends 900.0000 USD, but 500.0000 USD was allocated");
-    expect(errs[3]).toContain("converts USD into another currency");
+    expect(errs[3]).toContain("INR is the book currency");
     expect(errs[4]).toContain("does not deal in JPY");
     expect(errs[5]).toContain("not an active client");
     expect(r.same).toBe(true);

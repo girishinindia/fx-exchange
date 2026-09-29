@@ -53,7 +53,13 @@ export async function saveAccount(s: Session, d: AccountInput): Promise<{ id: st
       const [cur] = await tx`select 1 from ex.company_currency where currency_code = ${currency} and is_active`;
       if (!cur) throw new Error(`${currency} is not one of the company's currencies`);
     }
-    const code = (d.code || (currency ? cashAccountCode(currency) : d.name.toUpperCase().replace(/[^A-Z0-9]+/g, "-").slice(0, 20))).toUpperCase();
+    const slug = d.name.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 20);
+    let code = (d.code || (currency ? cashAccountCode(currency) : slug)).toUpperCase();
+    // a second cash/bank account in a currency (a bank beside the drawer) takes its code from its name
+    const [taken] = await tx`select 1 from ex.account where code = ${code}`;
+    if (taken && !d.code) code = currency ? `${slug || "ACCT"}-${currency}`.slice(0, 30) : `${slug}-2`;
+    const [still] = await tx`select 1 from ex.account where code = ${code}`;
+    if (still) throw new Error(`An account with code ${code} already exists — give this one its own code`);
     const [row] = await tx<{ id: string; code: string }[]>`
       insert into ex.account (code, name, account_type, account_group, currency_code, note, sort_order)
       values (${code}, ${d.name}, ${d.accountType}, ${d.accountGroup}, ${currency}, ${d.note ?? null},

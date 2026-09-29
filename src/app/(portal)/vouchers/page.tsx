@@ -59,12 +59,12 @@ export default async function VouchersPage({ searchParams }: PageProps<"/voucher
         <div className="overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead className="bg-sky-50/70">
-              <tr>{["Voucher", "Date", "Type", "Party", "Narration", "Amount (₹)", "By"].map((h, i) => (
-                <th key={h} className={`px-4 py-2.5 text-xs font-semibold uppercase text-slate-500 ${i === 5 ? "text-right" : "text-left"}`}>{h}</th>
+              <tr>{["Voucher", "Date", "Type", "Party", "Narration", "Drawers", "Amount (₹)", "By"].map((h, i) => (
+                <th key={h} className={`px-4 py-2.5 text-xs font-semibold uppercase text-slate-500 ${i === 6 ? "text-right" : "text-left"}`}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
-              {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No vouchers for these filters.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">No vouchers for these filters.</td></tr>}
               {rows.map((v) => (
                 <tr key={v.id} className={`border-t border-sky-50 hover:bg-sky-50/50 ${v.status === "REVERSED" ? "opacity-60" : ""}`}>
                   <td className="px-4 py-2.5"><Link href={`/vouchers/${v.id}`} className="font-medium text-sky-700">{v.voucher_no}</Link></td>
@@ -72,6 +72,7 @@ export default async function VouchersPage({ searchParams }: PageProps<"/voucher
                   <td className="px-4 py-2.5"><Badge tone={v.voucher_type === "DEAL" ? "violet" : v.voucher_type === "OPENING" ? "slate" : "sky"}>{VOUCHER_TYPES[v.voucher_type]}</Badge></td>
                   <td className="px-4 py-2.5">{v.party_id ? <Link href={`/parties/${v.party_id}`} className="hover:text-sky-700">{v.party_name}</Link> : <span className="text-slate-400">—</span>}</td>
                   <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate">{v.narration ?? v.reference_no ?? ""}</td>
+                  <td className="px-4 py-2.5 text-xs tabular-nums text-slate-600">{[v.fx_move, v.cash_move].filter(Boolean).join(" · ") || <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-medium">{formatINR(v.total_inr)}</td>
                   <td className="px-4 py-2.5 text-slate-600">{v.created_by_name?.split(" ")[0]}</td>
                 </tr>

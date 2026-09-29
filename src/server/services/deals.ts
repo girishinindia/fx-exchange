@@ -28,7 +28,10 @@ export type DealInput = {
   fxCurrency: string;
   fxAmount: string;
   fxToInrRate: string;
-  srcAmount: string;
+  /** the currency the deal is funded from — the one sold, when the desk holds it as itself; the dealing currency otherwise */
+  srcCurrency?: string | null;
+  /** how much of the funding currency it spends — the amount sold when funded from the same currency */
+  srcAmount?: string | null;
   funding?: FundingSlice[];
   referenceNo?: string | null;
   narration?: string | null;
@@ -39,7 +42,7 @@ export type DealInput = {
 export type PostedDeal = {
   id: string; voucherId: string; voucherNo: string;
   billedInr: string; srcCostInr: string; marginInr: string;
-  fxAmount?: string; srcAmount?: string; duplicate: boolean;
+  fxAmount?: string; srcAmount?: string; srcCurrency?: string; duplicate: boolean;
 };
 
 export async function postDeal(s: Session, d: DealInput): Promise<PostedDeal> {
@@ -49,7 +52,8 @@ export async function postDeal(s: Session, d: DealInput): Promise<PostedDeal> {
     fx_currency: d.fxCurrency,
     fx_amount: d.fxAmount,
     fx_to_inr_rate: d.fxToInrRate,
-    src_amount: d.srcAmount,
+    src_currency: d.srcCurrency ?? null,
+    src_amount: d.srcAmount ?? null,
     funding: d.funding?.length
       ? d.funding.map((f) => ({ deposit_id: f.depositId, fx_allocated: f.fxAllocated }))
       : undefined,
@@ -67,6 +71,7 @@ export async function postDeal(s: Session, d: DealInput): Promise<PostedDeal> {
     billedInr: String(out.billed_inr), srcCostInr: String(out.src_cost_inr), marginInr: String(out.margin_inr),
     fxAmount: out.fx_amount === undefined ? undefined : String(out.fx_amount),
     srcAmount: out.src_amount === undefined ? undefined : String(out.src_amount),
+    srcCurrency: out.src_currency === undefined ? undefined : String(out.src_currency),
     duplicate: out.duplicate === true,
   };
 }
@@ -140,6 +145,8 @@ export async function getDeal(s: Session, id: number): Promise<{ deal: DealRow; 
 export type AvailableDeposit = {
   deposit_id: string; voucher_no: string; deposit_date: string; depositor_name: string;
   manual_rate: string; fx_unallocated: string;
+  /** the currency this deposit is held in — the dealing currency, or the one kept (0023) */
+  currency_code: string;
 };
 
 /** Deposits with currency still unspent, oldest first — what a new deal can draw on. */
@@ -148,7 +155,7 @@ export async function availableDeposits(s: Session, onDate?: string): Promise<Av
   return withTenant(await tenantOf(s), (tx) =>
     tx<AvailableDeposit[]>`
       select s.deposit_id, s.voucher_no, to_char(s.deposit_date, 'YYYY-MM-DD') as deposit_date,
-             s.depositor_name, d.manual_rate::text, s.fx_unallocated::text
+             s.depositor_name, d.manual_rate::text, s.fx_unallocated::text, trim(s.currency_code) as currency_code
         from ex.v_deposit_status s
         join ex.deposit d on d.id = s.deposit_id
        where s.fx_unallocated > 0 and s.status = 'POSTED'

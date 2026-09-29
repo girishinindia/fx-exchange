@@ -27,7 +27,7 @@ export type SaleInput = {
 };
 
 export type PostedSale = {
-  deal: { id: string; voucherId: string; voucherNo: string; billedInr: string; srcCostInr: string; marginInr: string; fxAmount: string; srcAmount: string };
+  deal: { id: string; voucherId: string; voucherNo: string; billedInr: string; srcCostInr: string; marginInr: string; fxAmount: string; srcAmount: string; srcCurrency: string };
   payout: { id: string; voucherNo: string; nowDueFx: string; gainInr: string } | null;
   receipt: { id: string; voucherNo: string; inrAmount: string; nowOwed: string; advanceInr: string } | null;
 };
@@ -38,7 +38,7 @@ export async function postSale(s: Session, v: SaleInput): Promise<PostedSale> {
   const d = v.deal;
   const dealPayload = {
     client_id: d.clientId, date: d.date ?? null, fx_currency: d.fxCurrency, fx_amount: d.fxAmount,
-    fx_to_inr_rate: d.fxToInrRate, src_amount: d.srcAmount,
+    fx_to_inr_rate: d.fxToInrRate, src_currency: d.srcCurrency ?? null, src_amount: d.srcAmount ?? null,
     funding: d.funding?.length ? d.funding.map((f) => ({ deposit_id: f.depositId, fx_allocated: f.fxAllocated })) : undefined,
     reference_no: d.referenceNo ?? null, narration: d.narration ?? null, rate_justification: d.rateJustification ?? null,
     client_ref: d.clientRef ?? null,
@@ -71,7 +71,7 @@ export async function postSale(s: Session, v: SaleInput): Promise<PostedSale> {
       deal: {
         id: String(deal.id), voucherId: String(deal.voucher_id), voucherNo: String(deal.voucher_no),
         billedInr: String(deal.billed_inr), srcCostInr: String(deal.src_cost_inr), marginInr: String(deal.margin_inr),
-        fxAmount: String(deal.fx_amount ?? d.fxAmount), srcAmount: String(deal.src_amount ?? d.srcAmount),
+        fxAmount: String(deal.fx_amount ?? d.fxAmount), srcAmount: String(deal.src_amount ?? d.srcAmount ?? ""), srcCurrency: String(deal.src_currency ?? ""),
       },
       payout, receipt,
     };
@@ -80,12 +80,12 @@ export async function postSale(s: Session, v: SaleInput): Promise<PostedSale> {
 
 export type PurchaseInput = {
   deposit: DepositInput;
-  /** pay the depositor now, in rupees, at this rate — 1 unit of the dealing currency in rupees */
+  /** pay the depositor now, in rupees, at this rate — 1 unit of the currency held (dealing currency, or the one kept) in rupees; accountCode: the rupee account paid from */
   payNow?: { rate: string; accountCode?: string | null } | null;
 };
 
 export type PostedPurchase = {
-  deposit: { id: string; voucherId: string; voucherNo: string; fxAmount: string; manualRate: string; inrAmount: string };
+  deposit: { id: string; voucherId: string; voucherNo: string; fxAmount: string; manualRate: string; inrAmount: string; currency: string; kept: boolean };
   settlement: { id: string; voucherNo: string; inrAmount: string; gainInr: string; nowOwedFx: string } | null;
 };
 
@@ -94,7 +94,7 @@ export async function postPurchase(s: Session, v: PurchaseInput): Promise<Posted
   const d = v.deposit;
   const depPayload = {
     depositor_id: d.depositorId, date: d.date ?? null, currency: d.currency ?? null, fx_amount: d.fxAmount,
-    to_primary_rate: d.toPrimaryRate ?? null, rate: d.rate, reference_no: d.referenceNo ?? null,
+    to_primary_rate: d.toPrimaryRate ?? null, keep: d.keep ?? false, rate: d.rate, reference_no: d.referenceNo ?? null,
     narration: d.narration ?? null, rate_justification: d.rateJustification ?? null, client_ref: d.clientRef ?? null,
   };
   return withTenant(await tenantOf(s), async (tx) => {
@@ -103,7 +103,7 @@ export async function postPurchase(s: Session, v: PurchaseInput): Promise<Posted
     let settlement: PostedPurchase["settlement"] = null;
     if (v.payNow) {
       const [sr] = await tx<{ r: Raw }[]>`select ex.fn_post_settlement(${tx.json({
-        depositor_id: d.depositorId, date: d.date ?? null, currency: null,
+        depositor_id: d.depositorId, date: d.date ?? null, currency: dep.currency ?? null,
         fx_amount: String(dep.fx_amount), rate: v.payNow.rate,
         account_code: v.payNow.accountCode ?? null, reference_no: d.referenceNo ?? null,
         narration: `Paid on the spot for ${String(dep.voucher_no)}`,
@@ -115,6 +115,7 @@ export async function postPurchase(s: Session, v: PurchaseInput): Promise<Posted
       deposit: {
         id: String(dep.id), voucherId: String(dep.voucher_id), voucherNo: String(dep.voucher_no),
         fxAmount: String(dep.fx_amount), manualRate: String(dep.manual_rate), inrAmount: String(dep.inr_amount),
+        currency: String(dep.currency ?? ""), kept: dep.kept === true,
       },
       settlement,
     };

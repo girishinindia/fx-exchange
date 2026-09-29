@@ -33,6 +33,8 @@ export type DepositInput = {
   fxAmount: string;
   /** one unit of that, in dealing currency — only when the two differ */
   toPrimaryRate?: string | null;
+  /** keep the currency handed over as itself instead of changing it into the dealing currency; rate is then ₹ per 1 of it */
+  keep?: boolean | null;
   rate: string;
   referenceNo?: string | null;
   narration?: string | null;
@@ -83,6 +85,7 @@ export async function postDeposit(s: Session, d: DepositInput): Promise<PostedDe
     currency: d.currency ?? null,
     fx_amount: d.fxAmount,
     to_primary_rate: d.toPrimaryRate ?? null,
+    keep: d.keep ?? false,
     rate: d.rate,
     reference_no: d.referenceNo ?? null,
     narration: d.narration ?? null,

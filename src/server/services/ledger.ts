@@ -17,6 +17,8 @@ export type VoucherRow = {
   total_inr: string; created_by_name: string | null; posted_at: Date;
   reversal_of: string | null; reversed_by: string | null;
   reversal_of_no: string | null; reversed_by_no: string | null;
+  /** what moved in the drawers: rupee accounts as "Cash −4,525 · Bank +8,450", foreign currency as "USD −100" (0023) */
+  cash_move: string | null; fx_move: string | null;
 };
 export type VoucherLineRow = {
   line_no: number; account_id: string; account_code: string; account_name: string; party_id: string | null;
@@ -77,10 +79,21 @@ export async function listVouchers(s: Session, f: VoucherFilter = {}): Promise<{
       select v.id, v.voucher_no, v.voucher_type, to_char(v.voucher_date, 'YYYY-MM-DD') as voucher_date, v.status,
              v.party_id, p.full_name as party_name, v.narration, v.reference_no, v.total_inr::text,
              u.full_name as created_by_name, v.posted_at,
-             v.reversal_of, v.reversed_by, null::text as reversal_of_no, null::text as reversed_by_no
+             v.reversal_of, v.reversed_by, null::text as reversal_of_no, null::text as reversed_by_no,
+             mv.cash_move, mv.fx_move
         from ex.voucher v
         left join ex.party p on p.id = v.party_id
         left join ex.app_user u on u.id = v.created_by
+        left join lateral (
+          select string_agg(case when x.is_base then regexp_replace(x.name, ' — .*$', '') || ' ' || (case when x.inr < 0 then '−' else '+' end) || to_char(abs(x.inr), 'FM99,99,99,99,990') end, ' · ' order by x.sort_order) as cash_move,
+                 string_agg(case when not x.is_base and x.fx <> 0 then trim(x.currency_code) || ' ' || (case when x.fx < 0 then '−' else '+' end) || to_char(abs(x.fx), 'FM99,99,99,99,990.00') end, ' · ' order by x.sort_order) as fx_move
+            from (select a.name, a.sort_order, a.currency_code, (trim(a.currency_code) = (select trim(base_currency_code) from ex.company)) as is_base,
+                         sum(case when l.dc = 'D' then l.fx_amount else -l.fx_amount end) as fx,
+                         sum(case when l.dc = 'D' then l.inr_amount else -l.inr_amount end) as inr
+                    from ex.voucher_line l join ex.account a on a.id = l.account_id
+                   where l.voucher_id = v.id and a.account_group = 'CASH_BANK'
+                   group by a.id, a.name, a.sort_order, a.currency_code) x
+           where x.fx <> 0 or x.inr <> 0) mv on true
        where ${where}
        order by v.voucher_date desc, v.id desc
        limit ${limit} offset ${offset}`;
