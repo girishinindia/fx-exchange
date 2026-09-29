@@ -107,3 +107,53 @@ export async function saveParty(s: Session, d: PartyInput): Promise<{ id: string
     return { id: String(row.id), partyCode: row.party_code };
   });
 }
+
+// ------------------------------------------------------------------ insight
+// What the web party page shows beside the ledger, for the phone: balances per account
+// (rupees owed, currency owed per currency), what a depositor is owed in currency, their
+// money round the loop, and what they have earned the desk. Read-only, report.view.
+
+export type PartyInsight = {
+  receivable_inr: string;
+  payable_inr: string;
+  currency_due: Array<{ currency_code: string; fx_due: string; inr_value: string }>;
+  owed_fx: Array<{ currency_code: string; fx_due: string; inr_value: string }>;
+  cycle: {
+    currency: string; status: string; deposit_count: number; deposited_fx: string; deposited_inr: string;
+    dealt_fx: string; unspent_fx: string; deal_count: number; billed_inr: string; collected_inr: string;
+    uncollected_inr: string; settled_fx: string; settled_inr: string; owed_fx: string; owed_inr: string; earned_inr: string;
+  } | null;
+  earned: {
+    funded_deals: number; currency_dealt: string; cost_of_that: string; dealing_margin: string; rate_gain: string; total_earned: string;
+  } | null;
+};
+
+export async function partyInsight(s: Session, id: number, isDepositor: boolean): Promise<PartyInsight> {
+  await assertPermission("report.view", s);
+  return withTenant(await tenantOf(s), async (tx) => {
+    const balances = await tx<{ account_group: string; currency_code: string; balance_fx: string; balance_inr: string }[]>`
+      select b.account_group, trim(b.currency_code) as currency_code, b.balance_fx::text, b.balance_inr::text
+        from ex.v_party_balance b where b.party_id = ${id} and (b.balance_inr <> 0 or b.balance_fx <> 0)`;
+    const receivable = balances.filter((b) => b.account_group === "RECEIVABLE").reduce((a, b) => a + Number(b.balance_inr), 0);
+    const payable = balances.filter((b) => b.account_group === "PAYABLE").reduce((a, b) => a - Number(b.balance_inr), 0);
+    const currency_due = balances
+      .filter((b) => b.account_group === "CURRENCY_PAYABLE" && Number(b.balance_fx) !== 0)
+      .map((b) => ({ currency_code: b.currency_code, fx_due: (-Number(b.balance_fx)).toFixed(4), inr_value: (-Number(b.balance_inr)).toFixed(2) }))
+      .sort((a, b) => Number(b.inr_value) - Number(a.inr_value));
+    if (!isDepositor) return { receivable_inr: receivable.toFixed(2), payable_inr: payable.toFixed(2), currency_due, owed_fx: [], cycle: null, earned: null };
+    const owed_fx = await tx<{ currency_code: string; fx_due: string; inr_value: string }[]>`
+      select trim(currency_code) as currency_code, fx_due::text, inr_value::text
+        from ex.v_depositor_due where party_id = ${id} order by inr_value desc`;
+    const [cycle] = await tx<NonNullable<PartyInsight["cycle"]>[]>`
+      select trim(currency) as currency, status, deposit_count::int as deposit_count, deposited_fx::text, deposited_inr::text,
+             dealt_fx::text, unspent_fx::text, deal_count::int as deal_count,
+             billed_inr::text, collected_inr::text, uncollected_inr::text,
+             settled_fx::text, settled_inr::text, owed_fx::text, owed_inr::text, earned_inr::text
+        from ex.v_depositor_cycle where party_id = ${id}`;
+    const [earned] = await tx<NonNullable<PartyInsight["earned"]>[]>`
+      select funded_deals::int as funded_deals, currency_dealt::text, cost_of_that::text,
+             dealing_margin::text, rate_gain::text, total_earned::text
+        from ex.v_depositor_profit where party_id = ${id}`;
+    return { receivable_inr: receivable.toFixed(2), payable_inr: payable.toFixed(2), currency_due, owed_fx, cycle: cycle ?? null, earned: earned ?? null };
+  });
+}

@@ -615,11 +615,11 @@ export const REPORTS: Record<string, ReportDef> = {
     async run(tx, p) {
       const like = p.q ? `%${p.q}%` : null;
       const rows = await tx<{
-        party_code: string; full_name: string; currency: string; status: string;
+        party_id: string; party_code: string; full_name: string; currency: string; status: string;
         deposited_fx: string; dealt_fx: string; unspent_fx: string; billed_inr: string; collected_inr: string;
         uncollected_inr: string; settled_fx: string; owed_fx: string; earned_inr: string;
       }[]>`
-        select party_code, full_name, trim(currency) as currency, status,
+        select party_id, party_code, full_name, trim(currency) as currency, status,
                deposited_fx, dealt_fx, unspent_fx, billed_inr, collected_inr, uncollected_inr,
                settled_fx, owed_fx, earned_inr
           from ex.v_depositor_cycle
@@ -638,7 +638,9 @@ export const REPORTS: Record<string, ReportDef> = {
         { key: "owed", label: `Still owed (${cur})`, type: "qty" },
         { key: "earned", label: "Earned so far (₹)", type: "money", total: true },
       ];
+      // partyId and currency ride along for the phone's dashboard; they are not columns.
       const out: Row[] = rows.map((r) => ({
+        partyId: String(r.party_id), currency: r.currency,
         code: r.party_code, name: r.full_name,
         status: r.status === "CLOSED" ? "Closed" : r.status === "OPEN" ? "Open" : "—",
         deposited: Number(r.deposited_fx).toFixed(2), unspent: Number(r.unspent_fx) ? Number(r.unspent_fx).toFixed(2) : null,

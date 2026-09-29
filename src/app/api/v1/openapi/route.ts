@@ -156,7 +156,7 @@ export function GET() {
         post: { summary: "Add a party (party.manage)", responses: ok({ type: "object" }) },
       },
       "/parties/{id}": {
-        get: { summary: "One party, optionally with its ledger", parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }, { name: "ledger", in: "query", schema: { type: "string", enum: ["1"] } }], responses: ok({ type: "object" }) },
+        get: { summary: "One party, optionally with its ledger; with report.view also `insight` — rupees owed, currency still to deliver per currency, what a depositor is owed in currency, their money round the loop (cycle) and what they have earned the desk (earned)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }, { name: "ledger", in: "query", schema: { type: "string", enum: ["1"] } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok({ type: "object", properties: { party: { type: "object" }, ledger: { type: "object", nullable: true }, insight: { type: "object", nullable: true, properties: { receivableInr: { type: "string" }, payableInr: { type: "string" }, currencyDue: { type: "array" }, owedFx: { type: "array" }, cycle: { type: "object", nullable: true }, earned: { type: "object", nullable: true } } } } }) },
         patch: { summary: "Edit a party (party.manage)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }], responses: ok({ type: "object" }) },
       },
       "/accounts": {
