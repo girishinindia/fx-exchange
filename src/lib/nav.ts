@@ -57,7 +57,7 @@ export function findNavItem(pathname: string): NavItem | undefined {
 
 /** Portal routes the proxy protects (optimistic cookie check). */
 export const PROTECTED_PREFIXES = [
-  "/dashboard", "/vouchers", "/accounts", "/opening", "/parties", "/reports", "/print", "/search",
+  "/dashboard", "/entry", "/home", "/money", "/more", "/vouchers", "/accounts", "/opening", "/parties", "/reports", "/print", "/search",
   "/deposits", "/deals", "/payouts", "/receipts", "/settlements",
   "/admin", "/profile", "/change-password", "/setup",
 ];

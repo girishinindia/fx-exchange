@@ -4,6 +4,7 @@ import type { Session } from "@/lib/session";
 import { Icon } from "@/components/ui";
 import { QuickCreate, type QuickAction } from "@/components/layout/QuickCreate";
 import { signOut } from "@/app/actions/auth";
+import { ModeSwitch } from "@/components/layout/ModeSwitch";
 
 function initials(name: string) {
   return name
@@ -50,6 +51,7 @@ export async function Topbar({ session }: { session: Session }) {
       </form>
       <div className="ml-auto flex items-center gap-3">
         {session.preview && <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-medium">Preview mode (dev only)</span>}
+        <ModeSwitch current="full" />
         <QuickCreate actions={actions} />
         <Link href="/profile" className="flex items-center gap-2 pl-2 border-l border-sky-100">
           <div className="h-9 w-9 rounded-full bg-sky-100 text-sky-700 grid place-items-center font-semibold text-sm">{initials(session.userName)}</div>

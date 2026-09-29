@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getUiMode } from "@/lib/ui-mode";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { withTenant } from "@/lib/db";
@@ -36,7 +37,7 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   const res = await authenticate({ ...parsed.data, ip, userAgent, context: "web" });
   if (!res.ok) return { error: res.error };
   await createSession(res.data);
-  redirect(res.data.mustChangePassword ? "/change-password" : "/dashboard");
+  redirect(res.data.mustChangePassword ? "/change-password" : (await getUiMode()) === "simple" ? "/home" : "/dashboard");
 }
 
 // ------------------------------------------------------------------ password change

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getUiMode } from "@/lib/ui-mode";
 import { Icon } from "@/components/ui";
 import { LoginForm } from "@/components/forms";
 import { getSession } from "@/lib/session";
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Sign in" };
 /** Login: company code + email + password. No self sign-up — users are created by an Admin. */
 export default async function LoginPage() {
   const s = await getSession();
-  if (s && !s.preview) redirect(s.mustChangePassword ? "/change-password" : "/dashboard");
+  if (s && !s.preview) redirect(s.mustChangePassword ? "/change-password" : (await getUiMode()) === "simple" ? "/home" : "/dashboard");
 
   return (
     <div className="min-h-dvh grid lg:grid-cols-2 bg-gradient-to-br from-sky-50 via-white to-sky-100">
