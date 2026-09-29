@@ -4,6 +4,7 @@
 /node_modules
 /db
 /docs
+/scripts
 /.pnp
 .pnp.*
 .yarn/*
