@@ -48,12 +48,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
      where status = 'OPEN'
      order by owed_inr desc, full_name
      limit 8`);
-  const inr = d.cash.find((c) => c.currency_code.trim() === company.baseCurrency);
+  // Rupees sit in more than one drawer — cash and bank — so this is a sum, not the first one found.
+  const rupeeDrawers = d.cash.filter((c) => c.currency_code.trim() === company.baseCurrency);
   const foreign = d.cash.filter((c) => c.currency_code.trim() !== company.baseCurrency && Number(c.balance_fx) !== 0);
   const owed = Number(d.totals.owed_to_depositors);
   const collect = Number(d.totals.to_collect);
   const deliver = Number(d.totals.currency_to_deliver);
-  const rupees = Number(inr?.balance_inr ?? 0);
+  const rupees = rupeeDrawers.reduce((a, c) => a + Number(c.balance_inr), 0);
   const profit = Number(d.totals.margin) - Number(d.totals.expenses);
   const balanced = Math.abs(Number(d.tb.dr) - Number(d.tb.cr)) < 0.005;
   const shortfall = owed - rupees;
@@ -103,13 +104,18 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <tr>{["Currency", "Held", "Value (₹)"].map((h, i) => <th key={h} className={`px-4 py-2 text-xs font-semibold uppercase text-slate-500 ${i ? "text-right" : "text-left"}`}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {d.cash.filter((c) => Number(c.balance_fx) !== 0 || c.currency_code.trim() === company.baseCurrency).map((c) => (
-                <tr key={c.code} className="border-t border-sky-50">
-                  <td className="px-4 py-2 font-medium">{c.currency_code.trim()}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatQty(c.balance_fx, 2)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatINR(c.balance_inr, { decimals: 0 })}</td>
-                </tr>
-              ))}
+              {d.cash.filter((c) => Number(c.balance_fx) !== 0 || c.currency_code.trim() === company.baseCurrency).map((c) => {
+                // The base currency has a drawer each for cash and for bank, so the code alone
+                // would print "INR" twice. Name the drawer instead, as the Money page does.
+                const isBase = c.currency_code.trim() === company.baseCurrency;
+                return (
+                  <tr key={c.code} className="border-t border-sky-50">
+                    <td className="px-4 py-2 font-medium">{isBase ? `₹ ${c.name.replace(/ — .*$/, "")}` : c.currency_code.trim()}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{isBase ? <span className="text-slate-300">—</span> : formatQty(c.balance_fx, 2)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatINR(c.balance_inr, { decimals: 0 })}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {foreign.length > 0 && <p className="px-4 py-3 text-xs text-slate-500 border-t border-sky-50">Foreign currency here is mostly owed to clients — it is not free money.</p>}

@@ -41,7 +41,7 @@ export default async function PartiesPage({ searchParams }: PageProps<"/parties"
             </select>
           </label>
           <label className="block w-64"><span className="text-xs font-medium text-slate-500">Search</span>
-            <input name="q" defaultValue={q ?? ""} placeholder="Name, code, mobile, GSTIN" className={sel} /></label>
+            <input name="q" defaultValue={q ?? ""} placeholder="Name, code or mobile" className={sel} /></label>
           <button className="rounded-lg bg-sky-600 text-white px-3.5 py-2 text-sm font-medium"><Icon name="fa-filter" className="mr-1" />Apply</button>
           <Link href="/parties" className="text-sm text-sky-700 px-2 py-2">Reset</Link>
         </form>
@@ -49,12 +49,12 @@ export default async function PartiesPage({ searchParams }: PageProps<"/parties"
       <Card padded={false}>
         <table className="w-full text-sm">
           <thead className="bg-sky-50/70">
-            <tr>{["Code", "Name", "Role", "Mobile", "City", "Owes us", "We owe"].map((h, i) => (
-              <th key={h} className={`px-4 py-2.5 text-xs font-semibold uppercase text-slate-500 ${i >= 5 ? "text-right" : "text-left"}`}>{h}</th>
+            <tr>{["Code", "Name", "Role", "Mobile", "Owes us", "We owe"].map((h, i) => (
+              <th key={h} className={`px-4 py-2.5 text-xs font-semibold uppercase text-slate-500 ${i >= 4 ? "text-right" : "text-left"}`}>{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No parties yet.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">No parties yet.</td></tr>}
             {rows.map((p) => (
               <tr key={p.id} className={`border-t border-sky-50 hover:bg-sky-50/50 ${p.is_active ? "" : "opacity-60"}`}>
                 <td className="px-4 py-2.5 text-slate-600">{p.party_code}</td>
@@ -64,7 +64,6 @@ export default async function PartiesPage({ searchParams }: PageProps<"/parties"
                   {p.is_client && <Badge tone="sky">Client</Badge>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-600">{p.phone ?? "—"}</td>
-                <td className="px-4 py-2.5 text-slate-600">{p.city ?? "—"}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{Number(p.receivable_inr) ? formatINR(p.receivable_inr, { decimals: 0 }) : <span className="text-slate-400">—</span>}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{Number(p.payable_inr) ? <span className="text-rose-700">{formatINR(p.payable_inr, { decimals: 0 })}</span> : <span className="text-slate-400">—</span>}</td>
               </tr>

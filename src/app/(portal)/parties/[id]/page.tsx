@@ -72,7 +72,7 @@ export default async function PartyPage({ params }: PageProps<"/parties/[id]">) 
       <PageHeader
         title={party.full_name}
         crumbs={["Parties"]}
-        subtitle={<>{party.party_code} · {party.is_depositor && <Badge tone="violet">Depositor</Badge>} {party.is_client && <Badge tone="sky">Client</Badge>} {party.city ? `· ${party.city}` : ""} {party.phone ? `· ${party.phone}` : ""}</>}
+        subtitle={<>{party.party_code} · {party.is_depositor && <Badge tone="violet">Depositor</Badge>} {party.is_client && <Badge tone="sky">Client</Badge>} {party.phone ? `· ${party.phone}` : ""}</>}
         actions={
           <span className="flex flex-wrap gap-2">
             {party.is_depositor && perms.has("report.view") && (
@@ -97,7 +97,6 @@ export default async function PartyPage({ params }: PageProps<"/parties/[id]">) 
             value={owedFx.length ? owedFx.map((c) => `${formatQty(c.fx_due, 2)} ${c.currency_code.trim()}`).join(" · ") : "—"}
             sub={owedFx.length ? `carried at ${formatINR(payable, { decimals: 0 })}` : balanceLabel(-payable, "DEPOSITOR")} />
         )}
-        <Kpi label="ID proof" value={party.id_proof_type ? party.id_proof_type.replace("_", " ") : "—"} sub={party.id_proof_number ? `•••• ${party.id_proof_number.slice(-4)}` : "not recorded"} icon="fa-id-card" tone="slate" />
       </div>
 
       {cycle && (

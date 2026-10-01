@@ -7,28 +7,18 @@ import { checkbox, fieldErrors, optId, optText, runAction, type ActionState } fr
 import { assertPermission } from "@/lib/permissions";
 import { saveParty } from "@/server/services/parties";
 
-const ID_TYPES = ["PASSPORT", "AADHAAR", "PAN", "DRIVING_LICENSE", "VOTER_ID", "OTHER"] as const;
-
-const Party = z
-  .object({
-    id: optId(),
-    partyForm: z.enum(["INDIVIDUAL", "BUSINESS"]),
-    fullName: z.string().trim().min(2, "Enter the name").max(160),
-    isDepositor: checkbox,
-    isClient: checkbox,
-    phone: optText(20).refine((v) => v === null || /^[0-9+\- ]{8,20}$/.test(v), "Mobile: digits only"),
-    email: optText(200).refine((v) => v === null || z.string().email().safeParse(v).success, "Enter a valid email"),
-    address: optText(300),
-    city: optText(80),
-    nationality: optText(60),
-    idProofType: z.enum(ID_TYPES).optional().or(z.literal("").transform(() => undefined)),
-    idProofNumber: optText(40),
-    gstin: optText(20).refine((v) => v === null || /^[0-9A-Z]{15}$/.test(v.toUpperCase()), "GSTIN must be 15 characters"),
-    notes: optText(500),
-    active: checkbox,
-  })
-  .refine((v) => v.isDepositor || v.isClient, { path: ["isDepositor"], message: "Tick depositor, client, or both" })
-  .refine((v) => !v.idProofNumber || v.idProofType, { path: ["idProofType"], message: "Choose the ID proof type" });
+// A party is a name and a way to reach them. Address, city, nationality, GSTIN and ID proof
+// are no longer asked for anywhere; the columns stay in ex.party so the companies that filled
+// them in keep what they had, and this form simply leaves them alone.
+const Party = z.object({
+  id: optId(),
+  partyForm: z.enum(["INDIVIDUAL", "BUSINESS"]),
+  fullName: z.string().trim().min(2, "Enter the name").max(160),
+  phone: optText(20).refine((v) => v === null || /^[0-9+\- ]{8,20}$/.test(v), "Mobile: digits only"),
+  email: optText(200).refine((v) => v === null || z.string().email().safeParse(v).success, "Enter a valid email"),
+  notes: optText(500),
+  active: checkbox,
+});
 
 /** Add or edit a depositor / client. */
 export async function savePartyAction(_p: ActionState, fd: FormData): Promise<ActionState> {
@@ -43,16 +33,11 @@ export async function savePartyAction(_p: ActionState, fd: FormData): Promise<Ac
       id: d.id,
       fullName: d.fullName,
       partyForm: d.partyForm,
-      isDepositor: d.isDepositor,
-      isClient: d.isClient,
+      // every party buys and sells — there is nothing to choose at the counter
+      isDepositor: true,
+      isClient: true,
       phone: d.phone,
       email: d.email,
-      address: d.address,
-      city: d.city,
-      nationality: d.nationality,
-      idProofType: d.idProofType ?? null,
-      idProofNumber: d.idProofNumber,
-      gstin: d.gstin?.toUpperCase() ?? null,
       notes: d.notes,
       isActive: d.active,
     });

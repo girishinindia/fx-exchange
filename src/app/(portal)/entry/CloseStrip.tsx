@@ -34,15 +34,15 @@ export function CloseStrip({ columns, closing, day, date, canRevalue }: { column
                 <span className="text-xs font-bold text-slate-700">{c.currency}</span>
                 <input inputMode="decimal" value={rates[c.code] ?? ""} onChange={(e) => setRates((r) => ({ ...r, [c.code]: e.target.value }))} placeholder="rate" disabled={fx === 0}
                   className="w-20 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-right text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-200" />
-                <span className="w-24 text-right text-xs tabular-nums text-slate-600">{num(rates[c.code] ?? "") ? formatINR(fx * num(rates[c.code] ?? ""), { decimals: 0 }) : fx ? `${formatQty(fx)} ${c.currency}` : "—"}</span>
+                <span className="w-24 text-right text-xs tabular-nums text-slate-600">{num(rates[c.code] ?? "") ? formatINR(fx * num(rates[c.code] ?? ""), { decimals: 2 }) : fx ? `${formatQty(fx)} ${c.currency}` : "—"}</span>
               </label>
             );
           })}
           {fxCols.length === 0 && <span className="text-xs text-slate-500">No foreign currency held at close.</span>}
         </div>
         <div className="text-right text-xs text-slate-700">
-          <div>Value at close: <b className="text-[14px] text-slate-900">{allTyped ? formatINR(total, { decimals: 0 }) : "type every rate"}</b></div>
-          <div className="text-slate-500">carried in the books at {formatINR(carried, { decimals: 0 })}{allTyped ? <> · {total - carried >= 0 ? "up" : "down"} {formatINR(Math.abs(total - carried), { decimals: 0 })} at these rates</> : null}</div>
+          <div>Value at close: <b className="text-[14px] text-slate-900">{allTyped ? formatINR(total, { decimals: 2 }) : "type every rate"}</b></div>
+          <div className="text-slate-500">carried in the books at {formatINR(carried, { decimals: 2 })}{allTyped ? <> · {total - carried >= 0 ? "up" : "down"} {formatINR(Math.abs(total - carried), { decimals: 2 })} at these rates</> : null}</div>
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-amber-100 pt-2 text-xs text-slate-700">

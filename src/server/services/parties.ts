@@ -80,15 +80,29 @@ export async function getParty(s: Session, id: number): Promise<PartyRow | null>
 /** Create or update. The code is generated (P-00001) when not given. */
 export async function saveParty(s: Session, d: PartyInput): Promise<{ id: string; partyCode: string }> {
   await assertPermission("party.manage", s);
-  if (!d.isClient && !d.isDepositor) throw new Error("Tick depositor, client, or both");
+  // The screens always send both; the API still allows one on its own for the acceptance books.
+  if (!d.isClient && !d.isDepositor) throw new Error("A party must be a depositor, a client, or both");
   return withTenant(await tenantOf(s), async (tx) => {
     if (d.id) {
+      // The screens no longer ask for address, city, nationality, ID proof or GSTIN. A field
+      // that is not sent at all keeps whatever the party already had — undefined leaves it as
+      // it was, null clears it — so dropping them from the forms does not quietly erase what a
+      // company typed in before.
+      const [was] = await tx<Pick<PartyRow, "address" | "city" | "nationality" | "id_proof_type" | "id_proof_number" | "gstin">[]>`
+        select address, city, nationality, id_proof_type, id_proof_number, gstin from ex.party where id = ${d.id}`;
+      if (!was) throw new Error("Party not found");
+      const keep = <T>(sent: T | undefined, had: T) => (sent === undefined ? had : sent);
       const [row] = await tx<{ id: string; party_code: string }[]>`
         update ex.party
            set full_name = ${d.fullName}, party_form = ${d.partyForm}, is_depositor = ${d.isDepositor}, is_client = ${d.isClient},
-               phone = ${d.phone ?? null}, email = ${d.email ?? null}, address = ${d.address ?? null}, city = ${d.city ?? null},
-               nationality = ${d.nationality ?? null}, id_proof_type = ${d.idProofType ?? null}, id_proof_number = ${d.idProofNumber ?? null},
-               gstin = ${d.gstin ?? null}, notes = ${d.notes ?? null}, is_active = ${d.isActive ?? true}
+               phone = ${d.phone ?? null}, email = ${d.email ?? null},
+               address     = ${keep(d.address, was.address)},
+               city        = ${keep(d.city, was.city)},
+               nationality = ${keep(d.nationality, was.nationality)},
+               id_proof_type   = ${keep(d.idProofType, was.id_proof_type)},
+               id_proof_number = ${keep(d.idProofNumber, was.id_proof_number)},
+               gstin       = ${keep(d.gstin, was.gstin)},
+               notes = ${d.notes ?? null}, is_active = ${d.isActive ?? true}
          where id = ${d.id}
          returning id, party_code`;
       if (!row) throw new Error("Party not found");

@@ -39,28 +39,28 @@ export function DayCloseForm({ initial, date }: { initial: DayClose; date: strin
               <tr key={r.currency} className="border-t border-slate-100">
                 <td className="px-4 py-2 font-semibold text-slate-800">{r.currency}<div className="text-[11px] font-normal text-slate-500">{Number(r.owedToClientsFx) > 0 && `${formatQty(r.owedToClientsFx)} owed to clients`}{Number(r.owedToClientsFx) > 0 && Number(r.owedToDepositorsFx) > 0 && " · "}{Number(r.owedToDepositorsFx) > 0 && `${formatQty(r.owedToDepositorsFx)} owed to depositors`}</div></td>
                 <td className="px-2 py-2 text-right">{formatQty(r.fx)}</td>
-                <td className="px-2 py-2 text-right text-slate-600">{formatINR(r.carriedInr, { decimals: 0 })}<div className="text-[11px] text-slate-400">{r.carriedRate ? `@ ${formatRate(r.carriedRate)}` : ""}</div></td>
+                <td className="px-2 py-2 text-right text-slate-600">{formatINR(r.carriedInr, { decimals: 2 })}<div className="text-[11px] text-slate-400">{r.carriedRate ? `@ ${formatRate(r.carriedRate)}` : ""}</div></td>
                 <td className="px-2 py-2 text-right"><input name={`rate:${r.currency}`} inputMode="decimal" value={rates[r.currency] ?? r.rate ?? ""} onChange={(e) => setRates((x) => ({ ...x, [r.currency]: e.target.value }))} placeholder="type" className={fieldCls} /></td>
-                <td className={cn("px-4 py-2 text-right font-semibold", r.valueInr ? "text-slate-900" : "text-slate-300")}>{r.valueInr ? formatINR(r.valueInr, { decimals: 0 }) : "—"}</td>
+                <td className={cn("px-4 py-2 text-right font-semibold", r.valueInr ? "text-slate-900" : "text-slate-300")}>{r.valueInr ? formatINR(r.valueInr, { decimals: 2 }) : "—"}</td>
               </tr>
             ))}
             {result.rupees.map((r) => (
               <tr key={r.code} className="border-t border-slate-100 text-slate-700">
-                <td className="px-4 py-2 font-semibold">₹ {r.name.replace(/ — .*$/, "")}</td><td className="px-2 py-2 text-right">{formatINR(r.inr, { decimals: 0, symbol: false })}</td><td className="px-2 py-2 text-right text-slate-400">—</td><td className="px-2 py-2 text-right text-slate-400">1</td><td className="px-4 py-2 text-right font-semibold">{formatINR(r.inr, { decimals: 0 })}</td>
+                <td className="px-4 py-2 font-semibold">₹ {r.name.replace(/ — .*$/, "")}</td><td className="px-2 py-2 text-right">{formatINR(r.inr, { decimals: 2, symbol: false })}</td><td className="px-2 py-2 text-right text-slate-400">—</td><td className="px-2 py-2 text-right text-slate-400">1</td><td className="px-4 py-2 text-right font-semibold">{formatINR(r.inr, { decimals: 2 })}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-sky-200 bg-sky-50 font-bold text-slate-900">
               <td className="px-4 py-2" colSpan={2}>Everything at close</td>
-              <td className="px-2 py-2 text-right">{formatINR(Number(result.totals.carriedInr) + result.rupees.reduce((a, r) => a + Number(r.inr), 0), { decimals: 0 })}</td>
+              <td className="px-2 py-2 text-right">{formatINR(Number(result.totals.carriedInr) + result.rupees.reduce((a, r) => a + Number(r.inr), 0), { decimals: 2 })}</td>
               <td />
-              <td className="px-4 py-2 text-right">{result.totals.valueInr ? formatINR(Number(result.totals.valueInr) + result.rupees.reduce((a, r) => a + Number(r.inr), 0), { decimals: 0 }) : "type every rate"}</td>
+              <td className="px-4 py-2 text-right">{result.totals.valueInr ? formatINR(Number(result.totals.valueInr) + result.rupees.reduce((a, r) => a + Number(r.inr), 0), { decimals: 2 }) : "type every rate"}</td>
             </tr>
           </tfoot>
         </table>
         {result.totals.unrealised && (
-          <p className="px-4 py-3 text-xs text-slate-600">At these rates the foreign currency is worth <b>{formatINR(result.totals.valueInr!, { decimals: 0 })}</b> against <b>{formatINR(result.totals.carriedInr, { decimals: 0 })}</b> in the books — {Number(result.totals.unrealised) >= 0 ? "up" : "down"} <b>{formatINR(Math.abs(Number(result.totals.unrealised)), { decimals: 0 })}</b>. That is unrealised: it is booked only when the books are restated (Year end → Revalue), not here.</p>
+          <p className="px-4 py-3 text-xs text-slate-600">At these rates the foreign currency is worth <b>{formatINR(result.totals.valueInr!, { decimals: 2 })}</b> against <b>{formatINR(result.totals.carriedInr, { decimals: 2 })}</b> in the books — {Number(result.totals.unrealised) >= 0 ? "up" : "down"} <b>{formatINR(Math.abs(Number(result.totals.unrealised)), { decimals: 2 })}</b>. That is unrealised: it is booked only when the books are restated (Year end → Revalue), not here.</p>
         )}
       </div>
 
